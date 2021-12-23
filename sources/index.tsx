@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 export type Theme = {
   plain: React.CSSProperties;
@@ -58,7 +58,11 @@ export function JsonDoc({
     for (const type of types)
       styleByType.set(type, style);
 
-  const activeId = getCurrentHash();
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveId(getCurrentHash());
+  }, []);
 
   const sections: Array<{
     id: string | null;
