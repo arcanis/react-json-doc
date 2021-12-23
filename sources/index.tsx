@@ -43,10 +43,12 @@ export function JsonDoc({
   theme,
   extraTheme,
   linkComponent: Link = `a`,
+  skipFirstIndent = false,
   data,
 }: {
   theme: Theme;
   extraTheme: ExtraTheme;
+  skipFirstIndent?: boolean;
   linkComponent?: React.ElementType<{href: string, children?: React.ReactNode}>;
   data: any;
 }) {
@@ -229,7 +231,7 @@ export function JsonDoc({
   const processPattern = (patterns: Record<string, any>, key: string) => {
     for (const [pattern, spec] of Object.entries(patterns)) {
       if (key.match(new RegExp(pattern))) {
-        process(spec);
+        process(spec, {skipIndent: false});
         return;
       }
     }
@@ -237,7 +239,7 @@ export function JsonDoc({
     pushIdentifier(`error`);
   };
 
-  const process = (node: any) => {
+  const process = (node: any, {skipIndent}: {skipIndent: boolean}) => {
     switch (node.type) {
       case `number`: {
         pushNumber(node.examples[0]);
@@ -260,14 +262,16 @@ export function JsonDoc({
             pushToken(TokenType.SPACE);
           }
 
-          process({...node.items, examples: [node.exampleItems[t]]});
+          process({...node.items, examples: [node.exampleItems[t]]}, {
+            skipIndent: false,
+          });
         }
 
         pushToken(TokenType.R_BRACKET);
       } break;
 
       case `object`: {
-        indentedBlock(TokenType.L_CURLY, TokenType.R_CURLY, () => {
+        const injectObject = () => {
           if (node.exampleKeys) {
             for (const exampleKey of node.exampleKeys) {
               pushIdentifier(exampleKey);
@@ -292,7 +296,9 @@ export function JsonDoc({
               pushToken(TokenType.COLON);
               pushToken(TokenType.SPACE);
 
-              process(propertyNode);
+              process(propertyNode, {
+                skipIndent: false,
+              });
 
               pushToken(TokenType.COMMA);
               pushToken(TokenType.NL);
@@ -302,12 +308,20 @@ export function JsonDoc({
               closeSection();
             }
           }
-        });
+        };
+
+        if (skipIndent) {
+          injectObject();
+        } else {
+          indentedBlock(TokenType.L_CURLY, TokenType.R_CURLY, injectObject);
+        }
       } break;
     }
   };
 
-  process(data);
+  process(data, {
+    skipIndent: skipFirstIndent,
+  });
 
   return (
     <div style={{padding: `1rem`, paddingTop: `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
