@@ -9,6 +9,7 @@ export type Theme = {
 };
 
 export type ExtraTheme = {
+  container?: React.CSSProperties,
   activeHeader?: React.CSSProperties,
   inactiveHeader?: React.CSSProperties,
   annotation?: React.CSSProperties,
@@ -309,7 +310,7 @@ export function JsonDoc({
   process(data);
 
   return (
-    <div style={{padding: `1rem`, paddingTop: `2rem`, whiteSpace: `pre`, ...theme.plain}}>
+    <div style={{padding: `1rem`, paddingTop: `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
       {sections.map(({id, header, lines}, index) => {
         const sectionIndent = Math.min(...lines.filter(line => {
           return line.tokens.length > 0;
