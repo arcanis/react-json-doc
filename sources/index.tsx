@@ -1,20 +1,18 @@
 import React from 'react';
 
-export const defaultClassNames = {
-  container: `bg-gray-900 p-4 text-white whitespace-pre font-mononoki`,
-  header: (opts: {active: boolean}) => `relative my-4 rounded ${opts.active ? `bg-blue-900` : ``} p-4`,
-  anchor: `absolute -mt-8 w-full`,
-  section: `-mt-4`,
-
-  annotation: `mb-4 p-4 bg-gray-800 rounded text-gray-100 font-sans whitespace-normal`,
-  identifier: `underline`,
-  string: `text-green-400`,
-  number: `text-yellow-400`,
-  boolean: `text-blue-300`,
-  syntax: `text-gray-500`,
+export type Theme = {
+  plain: React.CSSProperties;
+  styles: {
+    style: Record<string, React.CSSProperties>;
+    types: string[];
+  }[];
 };
 
-export type JsonSchemaClassNames = typeof defaultClassNames;
+export type ExtraTheme = {
+  activeHeader: React.CSSProperties,
+  inactiveHeader: React.CSSProperties,
+  annotation: React.CSSProperties,
+};
 
 enum TokenType {
   L_CURLY,
@@ -27,9 +25,9 @@ enum TokenType {
   SPACE,
 }
 
-function JsonSchemaAnnotation({classNames, children}: {classNames: JsonSchemaClassNames, children: React.ReactNode}) {
+function JsonSchemaAnnotation({extraTheme, children}: {extraTheme: ExtraTheme, children: React.ReactNode}) {
   return (
-    <div className={classNames.annotation}>
+    <div style={{marginBottom: `1rem`, borderRadius: `var(--ifm-pre-background, 0.25rem)`, padding: `1rem`, whiteSpace: `normal`, ...extraTheme.annotation}}>
       {children}
     </div>
   );
@@ -39,15 +37,22 @@ function getCurrentHash() {
   return window.location.hash.slice(1);
 }
 
-export function JsonSchemaDocumentation({
-  classNames = defaultClassNames,
-  linkComponent: Link,
+export function JsonDoc({
+  theme,
+  extraTheme,
+  linkComponent: Link = `a`,
   data,
 }: {
-  classNames: JsonSchemaClassNames;
-  linkComponent: React.ComponentType<{href: string}>;
+  theme: Theme;
+  extraTheme: ExtraTheme;
+  linkComponent: React.ElementType<{href: string, children?: React.ReactNode}>;
   data: any;
 }) {
+  const styleByType = new Map<string, any>();
+  for (const {style, types} of theme.styles)
+    for (const type of types)
+      styleByType.set(type, style);
+
   const activeId = getCurrentHash();
 
   const sections: Array<{
@@ -128,10 +133,11 @@ export function JsonSchemaDocumentation({
 
   const pushIdentifier = (name: string) => {
     const id = getCurrentId();
+    const style = styleByType.get(`attr-name`);
 
     getIndentedLine().push(
       <Link href={`#${id}`}>
-        <a className={classNames.identifier}>
+        <a style={style}>
           {name}
         </a>
       </Link>,
@@ -139,32 +145,40 @@ export function JsonSchemaDocumentation({
   };
 
   const pushString = (str: string) => {
+    const style = styleByType.get(`string`);
+
     getIndentedLine().push(
-      <span className={classNames.string}>
+      <span className={style}>
         {JSON.stringify(str)}
       </span>,
     );
   };
 
   const pushNumber = (val: number) => {
+    const style = styleByType.get(`number`);
+
     getIndentedLine().push(
-      <span className={classNames.number}>
+      <span className={style}>
         {JSON.stringify(val)}
       </span>,
     );
   };
 
   const pushBoolean = (val: boolean) => {
+    const style = styleByType.get(`keyword`);
+
     getIndentedLine().push(
-      <span className={classNames.boolean}>
+      <span className={style}>
         {JSON.stringify(val)}
       </span>,
     );
   };
 
   const pushSyntaxToken = (raw: string) => {
+    const style = styleByType.get(`punctuation`);
+
     getIndentedLine().push(
-      <span className={classNames.syntax}>
+      <span className={style}>
         {raw}
       </span>,
     );
@@ -270,7 +284,7 @@ export function JsonSchemaDocumentation({
               idSegments.push(propertyName);
 
               if (typeof propertyNode.description !== `undefined`)
-                startNewSection(<JsonSchemaAnnotation classNames={classNames} children={propertyNode.description}/>);
+                startNewSection(<JsonSchemaAnnotation extraTheme={extraTheme} children={propertyNode.description}/>);
 
               pushIdentifier(propertyName);
               pushToken(TokenType.COLON);
@@ -294,7 +308,7 @@ export function JsonSchemaDocumentation({
   process(data);
 
   return (
-    <div className={classNames.container}>
+    <div style={{borderRadius: `var(--ifm-pre-background, 0.25rem)`, padding: `1rem`, paddingTop: `2rem`, whiteSpace: `pre`, ...theme.plain}}>
       {sections.map(({id, header, lines}, index) => {
         const sectionIndent = Math.min(...lines.filter(line => {
           return line.tokens.length > 0;
@@ -310,8 +324,8 @@ export function JsonSchemaDocumentation({
 
         if (header) {
           sectionRender = (
-            <div key={index} className={classNames.header({active: activeId === id})}>
-              <div id={id ?? undefined} className={classNames.anchor}/>
+            <div key={index} style={{position: `relative`, marginTop: `1rem`, marginBottom: `1rem`, padding: `1rem`, ...id === activeId ? extraTheme.activeHeader : extraTheme.inactiveHeader}}>
+              <div id={id ?? undefined} style={{position: `absolute`, marginTop: `-2rem`, width: `100%`}}/>
               {header}
               {sectionRender}
             </div>
@@ -319,7 +333,7 @@ export function JsonSchemaDocumentation({
         }
 
         return (
-          <div key={index} className={classNames.section} style={{marginLeft: sectionIndent * indentSize}}>
+          <div key={index} style={{marginTop: `-1rem`, marginLeft: sectionIndent * indentSize}}>
             {sectionRender}
           </div>
         );
