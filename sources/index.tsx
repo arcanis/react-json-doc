@@ -45,7 +45,7 @@ export function JsonDoc({
 }: {
   theme: Theme;
   extraTheme: ExtraTheme;
-  linkComponent: React.ElementType<{href: string, children?: React.ReactNode}>;
+  linkComponent?: React.ElementType<{href: string, children?: React.ReactNode}>;
   data: any;
 }) {
   const styleByType = new Map<string, any>();
