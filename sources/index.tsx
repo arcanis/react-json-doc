@@ -9,9 +9,10 @@ export type Theme = {
 };
 
 export type ExtraTheme = {
-  activeHeader: React.CSSProperties,
-  inactiveHeader: React.CSSProperties,
-  annotation: React.CSSProperties,
+  activeHeader?: React.CSSProperties,
+  inactiveHeader?: React.CSSProperties,
+  annotation?: React.CSSProperties,
+  section?: React.CSSProperties,
 };
 
 enum TokenType {
@@ -148,7 +149,7 @@ export function JsonDoc({
     const style = styleByType.get(`string`);
 
     getIndentedLine().push(
-      <span className={style}>
+      <span style={style}>
         {JSON.stringify(str)}
       </span>,
     );
@@ -158,7 +159,7 @@ export function JsonDoc({
     const style = styleByType.get(`number`);
 
     getIndentedLine().push(
-      <span className={style}>
+      <span style={style}>
         {JSON.stringify(val)}
       </span>,
     );
@@ -168,7 +169,7 @@ export function JsonDoc({
     const style = styleByType.get(`keyword`);
 
     getIndentedLine().push(
-      <span className={style}>
+      <span style={style}>
         {JSON.stringify(val)}
       </span>,
     );
@@ -178,7 +179,7 @@ export function JsonDoc({
     const style = styleByType.get(`punctuation`);
 
     getIndentedLine().push(
-      <span className={style}>
+      <span style={style}>
         {raw}
       </span>,
     );
@@ -308,7 +309,7 @@ export function JsonDoc({
   process(data);
 
   return (
-    <div style={{borderRadius: `var(--ifm-pre-background, 0.25rem)`, padding: `1rem`, paddingTop: `2rem`, whiteSpace: `pre`, ...theme.plain}}>
+    <div style={{padding: `1rem`, paddingTop: `2rem`, whiteSpace: `pre`, ...theme.plain}}>
       {sections.map(({id, header, lines}, index) => {
         const sectionIndent = Math.min(...lines.filter(line => {
           return line.tokens.length > 0;
@@ -317,7 +318,7 @@ export function JsonDoc({
         }));
 
         let sectionRender: React.ReactNode = lines.map(({indent, tokens}, lineIndex) => (
-          <div key={lineIndex} style={{marginLeft: (indent - sectionIndent) * indentSize}}>
+          <div key={lineIndex} style={{marginLeft: (indent - sectionIndent) * indentSize, ...extraTheme.section}}>
             {tokens}
           </div>
         ));
