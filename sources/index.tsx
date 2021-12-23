@@ -13,6 +13,7 @@ export type ExtraTheme = {
   activeHeader?: React.CSSProperties,
   inactiveHeader?: React.CSSProperties,
   annotation?: React.CSSProperties,
+  anchor?: React.CSSProperties,
   section?: React.CSSProperties,
 };
 
@@ -324,7 +325,7 @@ export function JsonDoc({
   });
 
   return (
-    <div style={{padding: `1rem`, paddingTop: `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
+    <div style={{padding: `1rem`, paddingTop: skipFirstIndent ? `1rem` : `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
       {sections.map(({id, header, lines}, index) => {
         const sectionIndent = Math.min(...lines.filter(line => {
           return line.tokens.length > 0;
@@ -341,7 +342,7 @@ export function JsonDoc({
         if (header) {
           sectionRender = (
             <div key={index} style={{position: `relative`, marginTop: `1rem`, marginBottom: `1rem`, padding: `1rem`, ...id === activeId ? extraTheme.activeHeader : extraTheme.inactiveHeader}}>
-              <div id={id ?? undefined} style={{position: `absolute`, marginTop: `-2rem`, width: `100%`}}/>
+              <div id={id ?? undefined} style={{position: `absolute`, marginTop: `-2rem`, width: `100%`, ...extraTheme.anchor}}/>
               {header}
               {sectionRender}
             </div>
