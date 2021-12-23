@@ -62,7 +62,7 @@ export function JsonDoc({
 
   useEffect(() => {
     setActiveId(getCurrentHash());
-  }, []);
+  });
 
   const sections: Array<{
     id: string | null;
