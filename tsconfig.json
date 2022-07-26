@@ -3,7 +3,7 @@
     "declaration": true,
     "esModuleInterop": true,
     "experimentalDecorators": true,
-    "jsx": "react-jsx",
+    "jsx": "react",
     "lib": [
       "DOM",
       "ES2018"
