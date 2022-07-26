@@ -1,20 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState} from 'react';
 
 export type Theme = {
   plain: React.CSSProperties;
-  styles: {
+  styles: Array<{
     style: Record<string, React.CSSProperties>;
-    types: string[];
-  }[];
+    types: Array<string>;
+  }>;
 };
 
 export type ExtraTheme = {
-  container?: React.CSSProperties,
-  activeHeader?: React.CSSProperties,
-  inactiveHeader?: React.CSSProperties,
-  annotation?: React.CSSProperties,
-  anchor?: React.CSSProperties,
-  section?: React.CSSProperties,
+  container?: React.CSSProperties;
+  activeHeader?: React.CSSProperties;
+  inactiveHeader?: React.CSSProperties;
+  annotation?: React.CSSProperties;
+  anchor?: React.CSSProperties;
+  section?: React.CSSProperties;
 };
 
 enum TokenType {
@@ -26,6 +26,10 @@ enum TokenType {
   COLON,
   NL,
   SPACE,
+}
+
+function prettify(text: string) {
+  return text.split(/\n/g).map((line, index) => <div key={index} style={{marginTop: index > 0 ? `1rem` : 0}}>{line}</div>);
 }
 
 function JsonSchemaAnnotation({extraTheme, children}: {extraTheme: ExtraTheme, children: React.ReactNode}) {
@@ -44,7 +48,7 @@ export function JsonDoc({
   theme,
   extraTheme,
   linkComponent: Link = `a`,
-  skipFirstIndent = false,
+  skipFirstIndent = true,
   data,
 }: {
   theme: Theme;
@@ -81,13 +85,40 @@ export function JsonDoc({
   const indentSize = 24;
   let indentCount = 0;
 
-  const indentedBlock = (lTok: TokenType, rTok: TokenType, fn: () => void) => {
-    pushToken(lTok);
-    pushToken(TokenType.NL);
+  const isInlineContext = [false];
+  let onTokenPush: ((tok?: TokenType) => void) | null = null;
 
-    indentCount += 1;
+  const indentedBlock = (lTok: TokenType, rTok: TokenType, foldStyle: boolean | undefined, fn: () => void) => {
+    let isEmpty = true;
+
+    pushToken(lTok);
+
+    onTokenPush = tok => {
+      isEmpty = false;
+
+      const effectiveFoldStyle = typeof foldStyle !== `undefined`
+        ? foldStyle
+        : tok !== TokenType.L_BRACKET && tok !== TokenType.L_CURLY;
+
+      if (effectiveFoldStyle) {
+        pushToken(TokenType.NL);
+        indentCount += 1;
+        isInlineContext.push(false);
+      } else {
+        isInlineContext.push(true);
+      }
+    };
+
     fn();
-    indentCount -= 1;
+
+    onTokenPush = null;
+
+    if (!isEmpty) {
+      const hasIndent = !isInlineContext.pop();
+      if (hasIndent) {
+        indentCount -= 1;
+      }
+    }
 
     pushToken(rTok);
   };
@@ -140,12 +171,22 @@ export function JsonDoc({
     return line.tokens;
   };
 
+  const triggerPushFn = (token?: TokenType) => {
+    const onTokenPushFn = onTokenPush;
+    onTokenPush = null;
+
+    onTokenPushFn?.(token);
+  };
+
   const pushIdentifier = (name: string) => {
+    triggerPushFn();
+
     const id = getCurrentId();
     const style = styleByType.get(`attr-name`);
+    const line = getIndentedLine();
 
-    getIndentedLine().push(
-      <Link href={`#${id}`}>
+    line.push(
+      <Link key={line.length} href={`#${id}`}>
         <a style={style}>
           {name}
         </a>
@@ -154,46 +195,60 @@ export function JsonDoc({
   };
 
   const pushString = (str: string) => {
-    const style = styleByType.get(`string`);
+    triggerPushFn();
 
-    getIndentedLine().push(
-      <span style={style}>
+    const style = styleByType.get(`string`);
+    const line = getIndentedLine();
+
+    line.push(
+      <span key={line.length} style={style}>
         {JSON.stringify(str)}
       </span>,
     );
   };
 
   const pushNumber = (val: number) => {
-    const style = styleByType.get(`number`);
+    triggerPushFn();
 
-    getIndentedLine().push(
-      <span style={style}>
+    const style = styleByType.get(`number`);
+    const line = getIndentedLine();
+
+    line.push(
+      <span key={line.length} style={style}>
         {JSON.stringify(val)}
       </span>,
     );
   };
 
   const pushBoolean = (val: boolean) => {
-    const style = styleByType.get(`keyword`);
+    triggerPushFn();
 
-    getIndentedLine().push(
-      <span style={style}>
+    const style = styleByType.get(`keyword`);
+    const line = getIndentedLine();
+
+    line.push(
+      <span key={line.length} style={style}>
         {JSON.stringify(val)}
       </span>,
     );
   };
 
   const pushSyntaxToken = (raw: string) => {
-    const style = styleByType.get(`punctuation`);
+    triggerPushFn();
 
-    getIndentedLine().push(
-      <span style={style}>
+    const style = styleByType.get(`punctuation`);
+    const line = getIndentedLine();
+
+    line.push(
+      <span key={line.length} style={style}>
         {raw}
       </span>,
     );
   };
 
   const pushToken = (token: TokenType) => {
+    triggerPushFn(token);
+
     switch (token) {
       case TokenType.L_CURLY: {
         pushSyntaxToken(`{`);
@@ -244,6 +299,17 @@ export function JsonDoc({
     pushIdentifier(`error`);
   };
 
+  const forwardExample = (node: any, example: any) => {
+    const exampleObject = node.type === `array`
+      ? {exampleItems: example}
+      : {examples: [example]};
+
+    return {
+      ...node,
+      ...exampleObject,
+    };
+  };
+
   const process = (node: any, {skipIndent}: {skipIndent: boolean}) => {
     switch (node.type) {
       case `number`: {
@@ -259,20 +325,27 @@ export function JsonDoc({
       } break;
 
       case `array`: {
-        pushToken(TokenType.L_BRACKET);
+        indentedBlock(TokenType.L_BRACKET, TokenType.R_BRACKET, node.foldStyle, () => {
+          for (let t = 0; t < node.exampleItems.length; ++t) {
+            const itemNode = node.prefixItems && t < node.prefixItems.length
+              ? node.prefixItems[t]
+              : node.items;
 
-        for (let t = 0; t < node.exampleItems.length; ++t) {
-          if (t > 0) {
-            pushToken(TokenType.COMMA);
-            pushToken(TokenType.SPACE);
+            process(forwardExample(itemNode, node.exampleItems[t]), {
+              skipIndent: false,
+            });
+
+            if (isInlineContext[isInlineContext.length - 1]) {
+              if (t + 1 < node.exampleItems.length) {
+                pushToken(TokenType.COMMA);
+                pushToken(TokenType.SPACE);
+              }
+            } else {
+              pushToken(TokenType.COMMA);
+              pushToken(TokenType.NL);
+            }
           }
-
-          process({...node.items, examples: [node.exampleItems[t]]}, {
-            skipIndent: false,
-          });
-        }
-
-        pushToken(TokenType.R_BRACKET);
+        });
       } break;
 
       case `object`: {
@@ -291,26 +364,43 @@ export function JsonDoc({
               closeSection();
             }
           } else {
-            for (const [propertyName, propertyNode] of Object.entries<any>(node.properties)) {
+            const entries = Object.entries<any>(node.properties);
+
+            for (let t = 0; t < entries.length; ++t) {
+              const [propertyName, propertyNode] = entries[t];
+
               idSegments.push(propertyName);
 
               if (typeof propertyNode.description !== `undefined`)
-                startNewSection(<JsonSchemaAnnotation extraTheme={extraTheme} children={propertyNode.description}/>);
+                startNewSection(<JsonSchemaAnnotation extraTheme={extraTheme} children={prettify(propertyNode.description)}/>);
 
               pushIdentifier(propertyName);
               pushToken(TokenType.COLON);
               pushToken(TokenType.SPACE);
 
-              process(propertyNode, {
+              const examples = node.examples
+                ? forwardExample(propertyNode, node.examples[0][propertyName])
+                : {};
+
+              process({...propertyNode, ...examples}, {
                 skipIndent: false,
               });
 
-              pushToken(TokenType.COMMA);
-              pushToken(TokenType.NL);
+              if (isInlineContext[isInlineContext.length - 1]) {
+                if (t + 1 < entries.length) {
+                  pushToken(TokenType.COMMA);
+                  pushToken(TokenType.SPACE);
+                }
+              } else {
+                pushToken(TokenType.COMMA);
+                pushToken(TokenType.NL);
+              }
 
               idSegments.pop();
 
-              closeSection();
+              if (typeof propertyNode.description !== `undefined`) {
+                closeSection();
+              }
             }
           }
         };
@@ -318,7 +408,7 @@ export function JsonDoc({
         if (skipIndent) {
           injectObject();
         } else {
-          indentedBlock(TokenType.L_CURLY, TokenType.R_CURLY, injectObject);
+          indentedBlock(TokenType.L_CURLY, TokenType.R_CURLY, node.foldStyle, injectObject);
         }
       } break;
     }
@@ -345,7 +435,7 @@ export function JsonDoc({
 
         if (header) {
           sectionRender = (
-            <div key={index} style={{position: `relative`, marginTop: `1rem`, marginBottom: `1rem`, padding: `1rem`, ...id === activeId ? extraTheme.activeHeader : extraTheme.inactiveHeader}}>
+            <div style={{position: `relative`, marginTop: `1rem`, marginBottom: `1rem`, padding: `1rem`, ...id === activeId ? extraTheme.activeHeader : extraTheme.inactiveHeader}}>
               <div id={id ?? undefined} style={{position: `absolute`, marginTop: `-2rem`, width: `100%`, ...extraTheme.anchor}}/>
               {header}
               {sectionRender}
