@@ -34,7 +34,7 @@ function prettify(text: string) {
 
 function JsonSchemaAnnotation({extraTheme, children}: {extraTheme: ExtraTheme, children: React.ReactNode}) {
   return (
-    <div style={{marginBottom: `1rem`, borderRadius: `var(--ifm-pre-background, 0.25rem)`, padding: `1rem`, whiteSpace: `normal`, ...extraTheme.annotation}}>
+    <div className={`rjd-annotation`} style={{marginBottom: `1rem`, borderRadius: `var(--ifm-pre-background, 0.25rem)`, padding: `1rem`, whiteSpace: `normal`, ...extraTheme.annotation}}>
       {children}
     </div>
   );
@@ -46,12 +46,14 @@ function getCurrentHash() {
 
 export function JsonDoc({
   theme,
+  descriptionRenderer = {render: prettify},
   extraTheme,
   linkComponent: Link = `a`,
   skipFirstIndent = true,
   data,
 }: {
   theme: Theme;
+  descriptionRenderer?: any;
   extraTheme: ExtraTheme;
   skipFirstIndent?: boolean;
   linkComponent?: React.ElementType<{href: string, children?: React.ReactNode}>;
@@ -310,33 +312,39 @@ export function JsonDoc({
     };
   };
 
+  const getExample = (node: any) => {
+    return node.examples?.[0] ?? node.default;
+  };
+
   const process = (node: any, {skipIndent}: {skipIndent: boolean}) => {
     switch (node.type) {
       case `number`: {
-        pushNumber(node.examples[0]);
+        pushNumber(getExample(node));
       } break;
 
       case `boolean`: {
-        pushBoolean(node.examples[0]);
+        pushBoolean(getExample(node));
       } break;
 
       case `string`: {
-        pushString(node.examples[0]);
+        pushString(getExample(node));
       } break;
 
       case `array`: {
         indentedBlock(TokenType.L_BRACKET, TokenType.R_BRACKET, node.foldStyle, () => {
-          for (let t = 0; t < node.exampleItems.length; ++t) {
+          const exampleItems = node.exampleItems ?? node._exampleItems ?? node.default ?? [];
+
+          for (let t = 0; t < exampleItems.length; ++t) {
             const itemNode = node.prefixItems && t < node.prefixItems.length
               ? node.prefixItems[t]
               : node.items;
 
-            process(forwardExample(itemNode, node.exampleItems[t]), {
+            process(forwardExample(itemNode, exampleItems[t]), {
               skipIndent: false,
             });
 
             if (isInlineContext[isInlineContext.length - 1]) {
-              if (t + 1 < node.exampleItems.length) {
+              if (t + 1 < exampleItems.length) {
                 pushToken(TokenType.COMMA);
                 pushToken(TokenType.SPACE);
               }
@@ -350,8 +358,9 @@ export function JsonDoc({
 
       case `object`: {
         const injectObject = () => {
-          if (node.exampleKeys) {
-            for (const exampleKey of node.exampleKeys) {
+          const exampleKeys = node.exampleKeys ?? node._exampleKeys;
+          if (typeof exampleKeys !== `undefined`) {
+            for (const exampleKey of exampleKeys) {
               pushIdentifier(exampleKey);
               pushToken(TokenType.COLON);
               pushToken(TokenType.SPACE);
@@ -360,8 +369,6 @@ export function JsonDoc({
 
               pushToken(TokenType.COMMA);
               pushToken(TokenType.NL);
-
-              closeSection();
             }
           } else {
             const entries = Object.entries<any>(node.properties);
@@ -372,7 +379,7 @@ export function JsonDoc({
               idSegments.push(propertyName);
 
               if (typeof propertyNode.description !== `undefined`)
-                startNewSection(<JsonSchemaAnnotation extraTheme={extraTheme} children={prettify(propertyNode.description)}/>);
+                startNewSection(<JsonSchemaAnnotation extraTheme={extraTheme} children={descriptionRenderer.render(propertyNode.description)}/>);
 
               pushIdentifier(propertyName);
               pushToken(TokenType.COLON);
@@ -419,7 +426,7 @@ export function JsonDoc({
   });
 
   return (
-    <div style={{padding: `1rem`, paddingTop: skipFirstIndent ? `1rem` : `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
+    <div className={`rjd-container`} style={{padding: `1rem`, paddingTop: skipFirstIndent ? `1rem` : `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
       {sections.map(({id, header, lines}, index) => {
         const sectionIndent = Math.min(...lines.filter(line => {
           return line.tokens.length > 0;
