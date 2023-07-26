@@ -15,6 +15,7 @@ export type ExtraTheme = {
   annotation?: React.CSSProperties;
   anchor?: React.CSSProperties;
   section?: React.CSSProperties;
+  identifier?: React.CSSProperties;
 };
 
 enum TokenType {
@@ -24,6 +25,7 @@ enum TokenType {
   R_BRACKET,
   COMMA,
   COLON,
+  PIPE,
   NL,
   SPACE,
 }
@@ -184,7 +186,7 @@ export function JsonDoc({
     triggerPushFn();
 
     const id = getCurrentId();
-    const style = styleByType.get(`attr-name`);
+    const style = {...styleByType.get(`attr-name`), ...extraTheme.identifier};
     const line = getIndentedLine();
 
     line.push(
@@ -205,6 +207,19 @@ export function JsonDoc({
     line.push(
       <span key={line.length} style={style}>
         {JSON.stringify(str)}
+      </span>,
+    );
+  };
+
+  const pushNull = (val: number) => {
+    triggerPushFn();
+
+    const style = styleByType.get(`null`);
+    const line = getIndentedLine();
+
+    line.push(
+      <span key={line.length} style={style}>
+        {JSON.stringify(val)}
       </span>,
     );
   };
@@ -276,6 +291,10 @@ export function JsonDoc({
         pushSyntaxToken(`:`);
       } break;
 
+      case TokenType.PIPE: {
+        pushSyntaxToken(`|`);
+      } break;
+
       case TokenType.SPACE: {
         getIndentedLine().push(` `);
       } break;
@@ -313,21 +332,58 @@ export function JsonDoc({
   };
 
   const getExample = (node: any) => {
-    return node.examples?.[0] ?? node.default;
+    const example = node.examples?.[0] ?? node.default;
+
+    if (typeof example === `undefined`)
+      throw new Error(`Missing example (in ${idSegments.join(`.`)})`);
+
+    return example;
+  };
+
+  const pushByType = {
+    null: pushNull,
+    number: pushNumber,
+    boolean: pushBoolean,
+    string: pushString,
+  };
+
+  const pushTyped = (value: any) => {
+    const valueType = typeof value;
+
+    if (!Object.prototype.hasOwnProperty.call(pushByType, valueType))
+      throw new Error(`Unsupported type ${valueType} (in ${idSegments.join(`.`)})`);
+
+    const pushFn: (arg: any) => void
+      = pushByType[valueType as keyof typeof pushByType];
+
+    return pushFn(value);
   };
 
   const process = (node: any, {skipIndent}: {skipIndent: boolean}) => {
-    switch (node.type) {
-      case `number`: {
-        pushNumber(getExample(node));
-      } break;
+    if (Array.isArray(node.type) && !node.type.every((type: string) => Object.prototype.hasOwnProperty.call(pushByType, type)))
+      throw new Error(`Unsupported type ${node.type.join(`, `)} (in ${idSegments.join(`.`)})`);
 
-      case `boolean`: {
-        pushBoolean(getExample(node));
-      } break;
+    const type = Array.isArray(node.type)
+      ? `mixed`
+      : node.type;
 
-      case `string`: {
-        pushString(getExample(node));
+    switch (type) {
+      case `null`:
+      case `number`:
+      case `boolean`:
+      case `string`:
+      case `mixed`: {
+        if (typeof node.enum === `undefined`) {
+          pushTyped(getExample(node));
+        } else {
+          pushTyped(node.enum[0]);
+          for (let t = 1; t < node.enum.length; ++t) {
+            pushToken(TokenType.SPACE);
+            pushToken(TokenType.PIPE);
+            pushToken(TokenType.SPACE);
+            pushTyped(node.enum[t]);
+          }
+        }
       } break;
 
       case `array`: {
@@ -360,6 +416,9 @@ export function JsonDoc({
         const injectObject = () => {
           const exampleKeys = node.exampleKeys ?? node._exampleKeys;
           if (typeof exampleKeys !== `undefined`) {
+            if (typeof node.patternProperties === `undefined`)
+              throw new Error(`Using exampleKeys without patternProperties is not supported (in ${idSegments.join(`.`)})`);
+
             for (const exampleKey of exampleKeys) {
               pushIdentifier(exampleKey);
               pushToken(TokenType.COLON);
@@ -375,6 +434,10 @@ export function JsonDoc({
 
             for (let t = 0; t < entries.length; ++t) {
               const [propertyName, propertyNode] = entries[t];
+
+              // If there's an example and it doesn't include this key, we can omit it
+              if (node.examples?.[0] && typeof node.examples[0][propertyName] === `undefined`)
+                continue;
 
               idSegments.push(propertyName);
 
@@ -418,6 +481,13 @@ export function JsonDoc({
           indentedBlock(TokenType.L_CURLY, TokenType.R_CURLY, node.foldStyle, injectObject);
         }
       } break;
+
+      default: {
+        if (typeof node.$ref !== `undefined`)
+          break;
+
+        throw new Error(`Unsupported type ${type} (in ${idSegments.join(`.`)})`);
+      } break;
     }
   };
 
@@ -426,7 +496,7 @@ export function JsonDoc({
   });
 
   return (
-    <div className={`rjd-container`} style={{padding: `1rem`, paddingTop: skipFirstIndent ? `1rem` : `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
+    <div className={`rjd-container`} style={{padding: `1rem 2rem`, paddingTop: skipFirstIndent ? `1rem` : `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
       {sections.map(({id, header, lines}, index) => {
         const sectionIndent = Math.min(...lines.filter(line => {
           return line.tokens.length > 0;
@@ -442,7 +512,7 @@ export function JsonDoc({
 
         if (header) {
           sectionRender = (
-            <div style={{position: `relative`, marginTop: `1rem`, marginBottom: `1rem`, padding: `1rem`, ...id === activeId ? extraTheme.activeHeader : extraTheme.inactiveHeader}}>
+            <div style={{position: `relative`, margin: `1rem -1rem`, padding: `1rem`, ...id === activeId ? extraTheme.activeHeader : extraTheme.inactiveHeader}}>
               <div id={id ?? undefined} style={{position: `absolute`, marginTop: `-2rem`, width: `100%`, ...extraTheme.anchor}}/>
               {header}
               {sectionRender}
