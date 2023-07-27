@@ -340,6 +340,13 @@ export function JsonDoc({
     return example;
   };
 
+  const getDescription = (node: any) => {
+    const title = node.title ?? ``;
+    const description = node.description ?? ``;
+
+    return `${title}\n\n${description}`.trim();
+  };
+
   const pushByType = {
     null: pushNull,
     number: pushNumber,
@@ -441,8 +448,9 @@ export function JsonDoc({
 
               idSegments.push(propertyName);
 
-              if (typeof propertyNode.description !== `undefined`)
-                startNewSection(<JsonSchemaAnnotation extraTheme={extraTheme} children={descriptionRenderer.render(propertyNode.description)}/>);
+              const description = getDescription(propertyNode);
+              if (description)
+                startNewSection(<JsonSchemaAnnotation extraTheme={extraTheme} children={descriptionRenderer.render(description)}/>);
 
               pushIdentifier(propertyName);
               pushToken(TokenType.COLON);
@@ -468,7 +476,7 @@ export function JsonDoc({
 
               idSegments.pop();
 
-              if (typeof propertyNode.description !== `undefined`) {
+              if (description) {
                 closeSection();
               }
             }
