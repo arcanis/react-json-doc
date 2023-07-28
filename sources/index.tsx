@@ -182,6 +182,28 @@ export function JsonDoc({
     onTokenPushFn?.(token);
   };
 
+  const pushReference = (node: any) => {
+    triggerPushFn();
+
+    const style = {...styleByType.get(`attr-name`), ...extraTheme.identifier};
+    const line = getIndentedLine();
+
+    const propertyName = node.$ref.replace(`#/properties/`, ``);
+    const target = data.properties[propertyName];
+
+    line.push(
+      <React.Fragment key={line.length}>
+        <span style={{color: `#ffffff`}}>
+          See
+        </span>
+        {` `}
+        <Link href={`#${propertyName}`} style={style}>
+          {propertyName}
+        </Link>
+      </React.Fragment>,
+    );
+  };
+
   const pushIdentifier = (name: string) => {
     triggerPushFn();
 
@@ -191,9 +213,9 @@ export function JsonDoc({
 
     line.push(
       <Link key={line.length} href={`#${id}`}>
-        <a style={style}>
+        <span style={style}>
           {name}
-        </a>
+        </span>
       </Link>,
     );
   };
@@ -332,7 +354,9 @@ export function JsonDoc({
   };
 
   const getExample = (node: any) => {
-    const example = node.examples?.[0] ?? node.default;
+    const example = typeof node.examples?.[0] !== `undefined`
+      ? node.examples[0]
+      : node.default;
 
     if (typeof example === `undefined`)
       throw new Error(`Missing example (in ${idSegments.join(`.`)})`);
@@ -355,7 +379,9 @@ export function JsonDoc({
   };
 
   const pushTyped = (value: any) => {
-    const valueType = typeof value;
+    const valueType = value !== null
+      ? typeof value
+      : `null`;
 
     if (!Object.prototype.hasOwnProperty.call(pushByType, valueType))
       throw new Error(`Unsupported type ${valueType} (in ${idSegments.join(`.`)})`);
@@ -491,8 +517,10 @@ export function JsonDoc({
       } break;
 
       default: {
-        if (typeof node.$ref !== `undefined`)
-          break;
+        if (typeof node.$ref !== `undefined`) {
+          pushReference(node);
+          return;
+        }
 
         throw new Error(`Unsupported type ${type} (in ${idSegments.join(`.`)})`);
       } break;
@@ -504,7 +532,7 @@ export function JsonDoc({
   });
 
   return (
-    <div className={`rjd-container`} style={{padding: `1rem 2rem`, paddingTop: skipFirstIndent ? `1rem` : `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
+    <div className={`rjd-container`} style={{padding: `1rem 2rem`, paddingTop: sections[0].header ? `1rem` : `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
       {sections.map(({id, header, lines}, index) => {
         const sectionIndent = Math.min(...lines.filter(line => {
           return line.tokens.length > 0;
@@ -513,7 +541,7 @@ export function JsonDoc({
         }));
 
         let sectionRender: React.ReactNode = lines.map(({indent, tokens}, lineIndex) => (
-          <div key={lineIndex} style={{marginLeft: (indent - sectionIndent) * indentSize, ...extraTheme.section}}>
+          <div key={lineIndex} style={{marginLeft: (indent - sectionIndent) * indentSize, whiteSpace: `nowrap`, textOverflow: `ellipsis`, overflow: `hidden`, ...extraTheme.section}}>
             {tokens}
           </div>
         ));
