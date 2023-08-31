@@ -549,7 +549,7 @@ export function JsonDoc({
         if (header) {
           sectionRender = (
             <div style={{position: `relative`, margin: `1rem -1rem`, padding: `1rem`, ...id === activeId ? extraTheme.activeHeader : extraTheme.inactiveHeader}}>
-              <div id={id ?? undefined} style={{position: `absolute`, marginTop: `-2rem`, width: `100%`, ...extraTheme.anchor}}/>
+              <h3 id={id ?? undefined} style={{position: `absolute`, display: `block`, marginTop: `-2rem`, width: `100%`, fontSize: 0, userSelect: `none`, ...extraTheme.anchor}} children={id}/>
               {header}
               {sectionRender}
             </div>
