@@ -11,6 +11,7 @@ export type Theme = {
 export type ExtraTheme = {
   container?: React.CSSProperties;
   activeHeader?: React.CSSProperties;
+  head?: React.CSSProperties;
   inactiveHeader?: React.CSSProperties;
   annotation?: React.CSSProperties;
   anchor?: React.CSSProperties;
@@ -34,9 +35,9 @@ function prettify(text: string) {
   return text.split(/\n/g).map((line, index) => <div key={index} style={{marginTop: index > 0 ? `1rem` : 0}}>{line}</div>);
 }
 
-function JsonSchemaAnnotation({extraTheme, children}: {extraTheme: ExtraTheme, children: React.ReactNode}) {
+function JsonSchemaAnnotation({style, children}: {style?: React.CSSProperties, children: React.ReactNode}) {
   return (
-    <div className={`rjd-annotation`} style={{marginBottom: `1rem`, borderRadius: `var(--ifm-pre-background, 0.25rem)`, padding: `1rem`, whiteSpace: `normal`, ...extraTheme.annotation}}>
+    <div className={`rjd-annotation`} style={{marginBottom: `1rem`, borderRadius: `var(--ifm-pre-background, 0.25rem)`, padding: `1rem`, whiteSpace: `normal`, ...style}}>
       {children}
     </div>
   );
@@ -327,8 +328,7 @@ export function JsonDoc({
 
       default: {
         throw new Error(`Unsupported token type ${token}`);
-      } break;
-    }
+      }    }
   };
 
   const processPattern = (patterns: Record<string, any>, key: string) => {
@@ -476,7 +476,7 @@ export function JsonDoc({
 
               const description = getDescription(propertyNode);
               if (description)
-                startNewSection(<JsonSchemaAnnotation extraTheme={extraTheme} children={descriptionRenderer.render(description)}/>);
+                startNewSection(<JsonSchemaAnnotation style={extraTheme.annotation} children={descriptionRenderer.render(description)}/>);
 
               pushIdentifier(propertyName);
               pushToken(TokenType.COLON);
@@ -523,8 +523,7 @@ export function JsonDoc({
         }
 
         throw new Error(`Unsupported type ${type} (in ${idSegments.join(`.`)})`);
-      } break;
-    }
+      }    }
   };
 
   process(data, {
@@ -533,6 +532,14 @@ export function JsonDoc({
 
   return (
     <div className={`rjd-container`} style={{padding: `1rem 2rem`, paddingTop: sections[0].header ? `1rem` : `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
+      {data.description && (
+        <div style={{marginBottom: `2rem`}}>
+          <JsonSchemaAnnotation style={extraTheme.head}>
+            {descriptionRenderer.render(data.description)}
+          </JsonSchemaAnnotation>
+        </div>
+      )}
+
       {sections.map(({id, header, lines}, index) => {
         const sectionIndent = Math.min(...lines.filter(line => {
           return line.tokens.length > 0;

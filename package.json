@@ -1,6 +1,6 @@
 {
   "name": "react-json-doc",
-  "version": "2.3.3",
+  "version": "2.3.4",
   "main": "sources/index.tsx",
   "types": "lib/index.d.ts",
   "license": "MIT",
