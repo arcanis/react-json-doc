@@ -9,7 +9,7 @@
     "url": "https://github.com/arcanis/react-json-doc",
     "type": "git"
   },
-  "packageManager": "yarn@3.1.1",
+  "packageManager": "yarn@4.10.3",
   "peerDependencies": {
     "react": "*"
   },
@@ -29,7 +29,12 @@
     "lint": "eslint --max-warnings 0 ."
   },
   "publishConfig": {
-    "main": "lib/index"
+    "exports": {
+      ".": {
+        "import": "./lib/index.mjs",
+        "require": "./lib/index.cjs"
+      }
+    }
   },
   "files": [
     "lib"

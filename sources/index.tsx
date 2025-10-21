@@ -9,6 +9,7 @@ export type Theme = {
 };
 
 export type ExtraTheme = {
+  baseSize?: string;
   container?: React.CSSProperties;
   activeHeader?: React.CSSProperties;
   head?: React.CSSProperties;
@@ -31,13 +32,29 @@ enum TokenType {
   SPACE,
 }
 
-function prettify(text: string) {
-  return text.split(/\n/g).map((line, index) => <div key={index} style={{marginTop: index > 0 ? `1rem` : 0}}>{line}</div>);
+const historyListeners = new Set<() => void>();
+
+if (typeof window !== `undefined`) {
+  for (const fnName of [`pushState`, `replaceState`]) {
+    const originalFn = (window as any)[fnName];
+
+    (window as any)[fnName] = (...args: Array<any>) => {
+      try {
+        return originalFn(...args);
+      } finally {
+        historyListeners.forEach((listener) => listener());
+      }
+    };
+  }
 }
 
-function JsonSchemaAnnotation({style, children}: {style?: React.CSSProperties, children: React.ReactNode}) {
+function prettify(text: string, baseSize: string) {
+  return text.split(/\n/g).map((line, index) => <div key={index} style={{marginTop: index > 0 ? baseSize : 0}}>{line}</div>);
+}
+
+function JsonSchemaAnnotation({baseSize, style, children}: {baseSize: string, style?: React.CSSProperties, children: React.ReactNode}) {
   return (
-    <div className={`rjd-annotation`} style={{marginBottom: `1rem`, borderRadius: `var(--ifm-pre-background, 0.25rem)`, padding: `1rem`, whiteSpace: `normal`, ...style}}>
+    <div className={`rjd-annotation`} style={{marginBottom: baseSize, borderRadius: `var(--ifm-pre-background, calc(0.25 * ${baseSize}))`, padding: baseSize, whiteSpace: `normal`, ...style}}>
       {children}
     </div>
   );
@@ -56,12 +73,14 @@ export function JsonDoc({
   data,
 }: {
   theme: Theme;
-  descriptionRenderer?: any;
+  descriptionRenderer?: {render: (text: string, size1: string) => React.ReactNode};
   extraTheme: ExtraTheme;
   skipFirstIndent?: boolean;
   linkComponent?: React.ElementType<{href: string, children?: React.ReactNode}>;
   data: any;
 }) {
+  const baseSize = extraTheme.baseSize ?? `1rem`;
+
   const styleByType = new Map<string, any>();
   for (const {style, types} of theme.styles)
     for (const type of types)
@@ -70,8 +89,20 @@ export function JsonDoc({
   const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
-    setActiveId(getCurrentHash());
-  });
+    const handler = () => {
+      setActiveId(getCurrentHash());
+    };
+
+    window.addEventListener(`hashchange`, handler);
+    window.addEventListener(`popstate`, handler);
+    historyListeners.add(handler);
+
+    return () => {
+      window.removeEventListener(`hashchange`, handler);
+      window.removeEventListener(`popstate`, handler);
+      historyListeners.delete(handler);
+    };
+  }, []);
 
   const sections: Array<{
     id: string | null;
@@ -476,7 +507,7 @@ export function JsonDoc({
 
               const description = getDescription(propertyNode);
               if (description)
-                startNewSection(<JsonSchemaAnnotation style={extraTheme.annotation} children={descriptionRenderer.render(description)}/>);
+                startNewSection(<JsonSchemaAnnotation baseSize={baseSize} style={extraTheme.annotation} children={descriptionRenderer.render(description, baseSize)}/>);
 
               pushIdentifier(propertyName);
               pushToken(TokenType.COLON);
@@ -531,11 +562,11 @@ export function JsonDoc({
   });
 
   return (
-    <div className={`rjd-container`} style={{padding: `1rem 2rem`, paddingTop: sections[0].header ? `1rem` : `2rem`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
+    <div className={`rjd-container`} style={{padding: `${baseSize} calc(2 * ${baseSize})`, paddingTop: sections[0].header ? baseSize : `calc(2 * ${baseSize})`, whiteSpace: `pre`, ...theme.plain, ...extraTheme.container}}>
       {data.description && (
-        <div style={{marginBottom: `2rem`}}>
-          <JsonSchemaAnnotation style={extraTheme.head}>
-            {descriptionRenderer.render(data.description)}
+        <div style={{marginBottom: `calc(2 * ${baseSize})`}}>
+          <JsonSchemaAnnotation baseSize={baseSize} style={extraTheme.head}>
+            {descriptionRenderer.render(data.description, baseSize)}
           </JsonSchemaAnnotation>
         </div>
       )}
@@ -555,8 +586,8 @@ export function JsonDoc({
 
         if (header) {
           sectionRender = (
-            <div style={{position: `relative`, margin: `1rem -1rem`, padding: `1rem`, ...id === activeId ? extraTheme.activeHeader : extraTheme.inactiveHeader}}>
-              <h3 id={id ?? undefined} style={{position: `absolute`, display: `block`, marginTop: `-2rem`, width: `100%`, fontSize: 0, userSelect: `none`, ...extraTheme.anchor}} children={id}/>
+            <div style={{position: `relative`, margin: `${baseSize} calc(-1 * ${baseSize})`, padding: baseSize, ...id === activeId ? extraTheme.activeHeader : extraTheme.inactiveHeader}}>
+              <h3 id={id ?? undefined} style={{position: `absolute`, display: `block`, marginTop: `calc(-2 * ${baseSize})`, width: `100%`, fontSize: 0, userSelect: `none`, ...extraTheme.anchor}} children={id}/>
               {header}
               {sectionRender}
             </div>
@@ -564,7 +595,7 @@ export function JsonDoc({
         }
 
         return (
-          <div key={index} style={{marginTop: `-1rem`, marginLeft: sectionIndent * indentSize}}>
+          <div key={index} style={{marginTop: `calc(-1 * ${baseSize})`, marginLeft: sectionIndent * indentSize}}>
             {sectionRender}
           </div>
         );
